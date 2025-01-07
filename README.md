@@ -1,3 +1,18 @@
+sudo apt update
+#telecharger aws
+curl -X GET "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+#Installez le paquet unzip :
+sudo apt install unzip
+sudo unzip awscliv2.zip
+sudo ./aws/install
+aws --version
+#configurer aws
+aws configure
+AWS Access Key ID [clé d’accès de l’utilisateur IAM]
+Clé d’accès secrète AWS [clé secrète de l’utilisateur IAM]
+Nom de région par défaut [eu-west-3]
+Format de sortie par défaut [json]
+
 /usr/local/aws-cli/v2/current/bin/aws
 
 #pour supprimer aws
@@ -250,8 +265,183 @@ maintenant que vous avez créé une image AMI de votre instance, vous pouvez sup
 aws ec2 terminate-instances --instance-ids INSTANCEID
 aws ec2 stop-instances --instance-ids i-073b015428da0ac9b --region eu-west-3
 
-git remote set-url origin https://github.com/julienh62/aws.git
+#Création d'un volume ESB Elastic Block Store
+#stockage en block similaire à un disk dur (SSD ou HDD)
+#chaque bloc est un elmnt distinct (ID)
+#ils sont automatiquement répliqués
+#sur la zoner de disponibilité
+#il est rattaché à instance EC2, appelée périphérique racine du volume.
 
-git remote set-url origin https://github.com/votre-utilisateur/votre-depot.git
+aws ec2 create-volume --availability-zone eu-west-3b --volume-type gp2 --size 5
+
+
+#attacher le volume de stockage à l'instance
+aws ec2 attach-volume --instance-id i-0d6fbcb4a91cd4351 --volume-id vol-0824914acd50c85a5 --device /dev/sdh
+
+#recuperer ID du volume de stockage
+aws ec2 describe-volumes --query "Volumes[*].{ID:VolumeId}" --output text --region us-east-1
+vol-00d5aa5e7bb42051f
+
+#supprimer volume de stockage
+aws ec2 delete-volume --volume-id vol-00d5aa5e7bb42051f --region us-east-1
+
+#decrire le volume de stockage
+aws ec2 describe-volumes --volume-ids vol-00d5aa5e7bb42051f --region us-east-1
+
+#Pour créer une instance EC2 à partir d’une image AMI que vous avez créée;
+#recuperer Id de limage
+aws ec2 describe-images --owners self --query "Images[*].{ID:ImageId,Name:Name}" --output table
+ami-07e4452da43e787d4
+
+aws ec2 run-instances \
+    --image-id ami-07e4452da43e787d4 \
+    --instance-type t2.micro \
+    --key-name your-key-pair \
+    --security-group-ids sg-0abcd1234efgh5678 \
+    --subnet-id subnet-0abcd1234efgh5678 \
+    --region eu-west-3 \
+    --count 1
+
+aws ec2 run-instances \
+    --image-id ami-07e4452da43e787d4 \
+    --instance-type t2.micro \
+    --key-name hennebo \
+    --security-group-ids sg-077726c48852234a2 \
+    --subnet-id subnet-054c4719d848f2849 \
+    --region eu-west-3 \
+    --count 1
+
+
+# verifier subnet disponibles
+aws ec2 describe-subnets --query "Subnets[*].{SubnetId:SubnetId,VpcId:VpcId,AvailabilityZone:AvailabilityZone,CIDR:CIDRBlock}" --output table
+                      DescribeSubnets                                 |
++------------------+-------+----------------------------+-------------------------+
+| AvailabilityZone | CIDR  |         SubnetId           |          VpcId          |
++------------------+-------+----------------------------+-------------------------+
+|  eu-west-3b      |  None |  subnet-054c4719d848f2849  |  vpc-067713aefe3109567  |
+|  eu-west-3c      |  None |  subnet-0c3c5984df628d0f7  |  vpc-067713aefe3109567  |
+|  eu-west-3a      |  None |  subnet-0aaabfa209684e665  |  vpc-067713aefe3109567  |
+|  eu-west-3c      |  None |  subnet-0725ea5f5d3e9f85f  |  vpc-03ca7d2b3b3f9dea9  |
+|  eu-west-3c      |  None |  subnet-0043c08ef8381e698  |  vpc-03ca7d2b3b3f9dea9  |
++------------------+-------+----------------------------+-------------------------+
+
+#Vérifiez le CIDR et la configuration du VPC car CIDR = none
+aws ec2 describe-vpcs --vpc-ids vpc-067713aefe3109567 vpc-03ca7d2b3b3f9dea9 --query "Vpcs[*].{VpcId:VpcId,CidrBlock:CidrBlock,IsDefault:IsDefault}" --output table
+
+|                      DescribeVpcs                      |
++-----------------+------------+-------------------------+
+|    CidrBlock    | IsDefault  |          VpcId          |
++-----------------+------------+-------------------------+
+|  192.168.0.0/16 |  False     |  vpc-03ca7d2b3b3f9dea9  |
+|  172.31.0.0/16  |  True      |  vpc-067713aefe3109567  |
++-----------------+------------+-------------------------+
+
+
+#Étape 1 : Vérifier si le sous-réseau est public ou privé dans le VPC par défaut
+aws ec2 describe-route-tables --filters "Name=vpc-id,Values=vpc-067713aefe3109567" --query "RouteTables[*].{RouteTableId:RouteTableId,Routes:Routes,Associations:Associations}" --output table
+-----------------------------------------------------------------------------------
+|                               DescribeRouteTables                               |
++---------------------------------------------------------------------------------+
+|                                  RouteTableId                                   |
++---------------------------------------------------------------------------------+
+|  rtb-06d78c78d715c1365                                                          |
++---------------------------------------------------------------------------------+
+||                                 Associations                                  ||
+|+--------+--------------------------------------+-------------------------------+|
+||  Main  |       RouteTableAssociationId        |         RouteTableId          ||
+|+--------+--------------------------------------+-------------------------------+|
+||  True  |  rtbassoc-013e8c4e8e41f43df          |  rtb-06d78c78d715c1365        ||
+|+--------+--------------------------------------+-------------------------------+|
+|||                              AssociationState                               |||
+||+-----------------------------+-----------------------------------------------+||
+|||  State                      |  associated                                   |||
+||+-----------------------------+-----------------------------------------------+||
+||                                    Routes                                     ||
+|+----------------------+-------------------------+--------------------+---------+|
+|| DestinationCidrBlock |        GatewayId        |      Origin        |  State  ||
+|+----------------------+-------------------------+--------------------+---------+|
+||  172.31.0.0/16       |  local                  |  CreateRouteTable  |  active ||
+||  0.0.0.0/0           |  igw-0db3731ec15c09621  |  CreateRoute       |  active ||
+
+
+# Afficher le sous-réseau est associé à cette table de routage
+aws ec2 describe-route-tables --route-table-id rtb-06d78c78d715c1365 --query "RouteTables[*].Associations" --output table
+
+-----------------------------------------------------------------
+|                      DescribeRouteTables                      |
++------+------------------------------+-------------------------+
+| Main |   RouteTableAssociationId    |      RouteTableId       |
++------+------------------------------+-------------------------+
+|  True|  rtbassoc-013e8c4e8e41f43df  |  rtb-06d78c78d715c1365  |
++------+------------------------------+-------------------------+
+||                      AssociationState                       ||
+|+-----------------------+-------------------------------------+|
+||  State                |  associated                         ||
+
+aws ec2 describe-route-tables --route-table-id rtb-06d78c78d715c1365 --query "RouteTables[0].Associations" --output table
+
+
+
+RouteTableId : rtb-06d78c78d715c1365
+
+Routes :
+
+    172.31.0.0/16 → local : Cela représente le réseau interne du VPC (pour communiquer avec d'autres instances dans le même VPC).
+    0.0.0.0/0 → igw-0db3731ec15c09621 : Cela montre qu'il existe une route par défaut (0.0.0.0/0) qui dirige tout le trafic vers une Internet Gateway (IGW), spécifiquement igw-0db3731ec15c09621.
+
+
+
+subnet-054c4719d848f2849  |  vpc-067713aefe3109567 
+
+
+#attacher un volume de stockage à l'instance
+#instance de stockage ;  vol-0824914acd50c85a5
+#instannce EC2 : i-0d6fbcb4a91cd4351
+aws ec2 attach-volume --instance-id i-0d6fbcb4a91cd4351 --volume-id vol-091bc45e094448a43 --device /dev/sdh
+
+#Lister les disques attachés à votre instance :
+lsblk
+sudo file -s /dev/nvme0n1
+sudo fdisk -l /dev/nvme0n1
+ubuntu@ip-172-31-0-175:~/aws$ Disk /dev/nvme0n1: 16 GiB, 17179869184 bytes, 33554432 sectors
+Disk model: Amazon Elastic Block Store              
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 4096 bytes / 4096 bytes
+Disklabel type: dos
+Disk identifier: 0x7213a253
+
+Device         Boot Start      End  Sectors Size Id Type
+/dev/nvme0n1p1 *     2048 33554398 33552351  16G 83 Linux
+ubuntu@ip-172-31-0-175:~/aws$ 
+
+
+aws ec2 create-volume --availability-zone eu-west-3b --volume-type gp2 --size 5
+
+
+#attacher le volume de stockage à l'instance
+aws ec2 attach-volume --instance-id i-0d6fbcb4a91cd4351 --volume-id vol-0824914acd50c85a5 --device /dev/sdh
+
+
+aws ec2 attach-volume --instance-id i-0d6fbcb4a91cd4351 --volume-id vol-0824914acd50c85a5 --device /dev/sdh
+buntu@ip-172-31-0-175:~/aws$ 
+    "VolumeId": "vol-0824914acd50c85a5",
+    "InstanceId": "i-0d6fbcb4a91cd4351",
+    "Device": "/dev/sdh",
+    "State": "attaching",
+    "AttachTime": "2025-01-07T11:34:13.468000+00:00"
+}
+
+
+
+    Détacher le volume de l'instance :
+
+aws ec2 detach-volume --volume-id vol-0824914acd50c85a5
+
+    Supprimer le volume:
+
+aws ec2 delete-volume --volume-id vol-0824914acd50c85a5
+
+
 
 
