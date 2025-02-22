@@ -111,3 +111,20 @@ Ce document décrit les étapes de configuration pour héberger un site web stat
 
     N'oubliez pas d'ajouter le nom de domaine jhennebo.fr sous Alternate Domain Name (CNAME) dans la configuration de CloudFront. Cela garantit que les fichiers servis par votre distribution CloudFront utilisent votre domaine personnalisé.
     Si vous utilisez des fichiers dans un autre bucket ou avez des besoins spécifiques, ajustez la configuration de CloudFront et S3 en conséquence.
+
+
+    pour vider le cache du CloudFront ;  Sélectionne ta distribution CloudFront :
+
+    Dans le tableau de bord de CloudFront, tu verras une liste de distributions. Sélectionne la distribution associée à ton site web.
+    Clique sur le ID de la distribution pour ouvrir les détails.
+
+Invalider le cache :
+
+    Une fois dans les détails de la distribution, va dans l'onglet Invalidations (c'est dans le menu en haut).
+    Clique sur Create Invalidation (Créer une invalidation).
+
+Choisis les fichiers à invalider :
+
+    Dans le champ "Object Paths", tu peux spécifier les fichiers ou les répertoires que tu veux invalider.
+        Si tu veux invalider tout le cache, tu peux entrer /* (cela invalidera tous les fichiers en cache de la distribution).
+        Si tu veux invalider des fichiers spécifiques, entre les chemins d'accès relatifs de ces fichiers, par exemple : /images/*.jpg ou /css/styles.css.
